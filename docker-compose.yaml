@@ -1,0 +1,46 @@
+services:
+  rabbit:
+    hostname: rabbit
+    image: rabbitmq:latest
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=1234
+    ports:
+      - "5673:5672"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    restart: always
+    command: [ "poetry", "run", "celery", "-A", "celery_app", "worker", "--loglevel=INFO" ]
+    depends_on:
+      - rabbit
+
+  provider:
+    build:
+      context: .
+      dockerfile: docker/provider/Dockerfile
+    restart: always
+    command: [ "poetry", "run", "python", "run_tasks.py" ]
+    depends_on:
+      - worker
+      - rabbit
+
+  flower:
+    build:
+      context: .
+      dockerfile: docker/flower/Dockerfile
+    restart: always
+    depends_on:
+      - rabbit
+      - worker
+      - provider
+    ports:
+      - "5556:5555"
+    command: [ "celery", "-A", "celery_app", "flower", "--port=5555"]
+
+networks:
+  default:
+    driver: bridge
